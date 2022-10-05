@@ -1,5 +1,5 @@
-argolib: argolib.cpp argolib.hpp
-	g++ -o argolib argolib.cpp -labt
+fib: fib.cpp argolib.hpp
+	g++ -o fib fib.cpp -labt
 
 clean:
-	rm -f argolib
+	rm -f fib
