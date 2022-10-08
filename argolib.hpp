@@ -1,9 +1,9 @@
-#include <abt.h>
 #include <stdarg.h>
 #include <stdlib.h>
 #include <unistd.h>
-
 #include <functional>
+#include "abt.h"
+#include "sched_control.hpp"
 
 #define DEFAULT_NUM_XSTREAMS 4
 
@@ -58,11 +58,7 @@ namespace argolib {
         /* Create schedulers. */
         for (int i = 0; i < num_xstreams; i++) {
             ABT_pool *tmp = (ABT_pool *)malloc(sizeof(ABT_pool) * num_xstreams);
-            for (int j = 0; j < num_xstreams; j++) {
-                tmp[j] = pools[(i + j) % num_xstreams];
-            }
-            ABT_sched_create_basic(ABT_SCHED_RANDWS, num_xstreams, tmp,
-                                   ABT_SCHED_CONFIG_NULL, &scheds[i]);
+            sched_control::create_scheds(DEFAULT_NUM_XSTREAMS, pools, scheds);
             free(tmp);
         }
 
@@ -121,6 +117,10 @@ namespace argolib {
         /* Free allocated memory. */
         free(xstreams);
         free(pools);
+
+        for (int i = 1; i < DEFAULT_NUM_XSTREAMS; i++) {
+            ABT_sched_free(&scheds[i]);
+        }
         free(scheds);
     }
 
