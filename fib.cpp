@@ -3,8 +3,7 @@
 #include "argolib.hpp"
 
 int fib(int n) {
-    if (n < 2)
-        return n;
+    if (n < 2) return n;
 
     int x, y;
     argolib::TaskHandle task1 = argolib::fork([&]() { x = fib(n - 1); });
