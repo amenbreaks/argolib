@@ -9,17 +9,27 @@
 ABT_pool *pools;
 ABT_sched *scheds;
 ABT_xstream *xstreams;
+int use_optimization = 0;
+unsigned long long num_ult;
 int num_xstreams = DEFAULT_NUM_XSTREAMS;
 
 typedef ABT_thread TaskHandle;
 typedef void (*fork_t)(void *args);
 
 void argolib_init(int argc, char **argv) {
-    char *_env = getenv("ARGOLIB_WORKERS");
-    if (_env != NULL) {
-        int _num_xstreams = atoi(_env);
+    char *_num_workers_str = getenv("ARGOLIB_WORKERS");
+    if (_num_workers_str) {
+        int _num_xstreams = atoi(_num_workers_str);
         if (_num_xstreams > 0) {
             num_xstreams = _num_xstreams;
+        }
+    }
+
+    char *_optimizations_str = getenv("ARGOLIB_OPTIMIZATION");
+    if (_optimizations_str) {
+        use_optimization = atoi(_optimizations_str);
+        if (use_optimization) {
+            printf("[+] Argolib: Using optimization\n");
         }
     }
 
@@ -33,20 +43,21 @@ void argolib_init(int argc, char **argv) {
 
     /* Create pools. */
     for (int i = 0; i < num_xstreams * 2; i++) {
-        if (i >= num_xstreams) {
-            // The last N pools are private to one pool
-            ABT_pool_create_basic(ABT_POOL_FIFO, ABT_POOL_ACCESS_PRIV, ABT_TRUE, &pools[i]);
+        ABT_pool_access access;
+
+        if (use_optimization) {
+            // Create private pools
+            access = ABT_POOL_ACCESS_PRIV;
         } else {
-            // First N Pools will be public
-            ABT_pool_create_basic(ABT_POOL_RANDWS, ABT_POOL_ACCESS_MPMC, ABT_TRUE, &pools[i]);
+            // Create public pools
+            access = ABT_POOL_ACCESS_MPSC;
         }
+
+        ABT_pool_create_basic(ABT_POOL_RANDWS, access, ABT_TRUE, &pools[i]);
     }
 
-    // Set the random seed
-    srand(time(NULL));
-
     /* Create schedulers. */
-    create_scheds(DEFAULT_NUM_XSTREAMS, pools, scheds);
+    create_scheds(DEFAULT_NUM_XSTREAMS, pools, scheds, use_optimization);
 
     /* Set up a primary execution stream. */
     ABT_xstream_self(&xstreams[0]);
@@ -63,7 +74,8 @@ void argolib_kernel(fork_t fptr, void *args) {
     fptr(args);
     double end_time = ABT_get_wtime();
     printf("[*] Kernel Report\n");
-    printf("\tElapsed Time:%f\n", end_time - start_time);
+    printf("\tElapsed Time: %f\n", end_time - start_time);
+    printf("\tULTs Created: %lld\n", num_ult);
 }
 
 TaskHandle *argolib_fork(fork_t fptr, void *args) {
@@ -72,21 +84,27 @@ TaskHandle *argolib_fork(fork_t fptr, void *args) {
     ABT_xstream_self_rank(&rank);
     ABT_pool target_pool = pools[rank];
 
+    num_ult++;
+
     ABT_thread_create(target_pool, fptr, args, ABT_THREAD_ATTR_NULL, &thread_handle);
-    return thread_handle;
+    return (ABT_thread *)thread_handle;
 }
 
 void argolib_join(TaskHandle **handles, int size) {
     for (int i = 0; i < size; i++) {
-        ABT_thread_join(handles[i]);
+        ABT_thread_join((ABT_thread)handles[i]);
+        ABT_thread_free((ABT_thread *)&handles[i]);
     }
 }
 
 void argolib_finalize() {
     /* Join secondary execution streams. */
     for (int i = 1; i < num_xstreams; i++) {
+        ABT_sched_exit(scheds[i]);
         ABT_xstream_join(xstreams[i]);
+
         ABT_xstream_free(&xstreams[i]);
+        ABT_sched_free(&scheds[i]);
     }
 
     /* Finalize Argobots. */
@@ -94,10 +112,6 @@ void argolib_finalize() {
 
     /* Free allocated memory. */
     free(xstreams);
-    free(pools);
-
-    for (int i = 1; i < DEFAULT_NUM_XSTREAMS; i++) {
-        ABT_sched_free(&scheds[i]);
-    }
     free(scheds);
+    free(pools);
 }
