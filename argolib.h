@@ -12,11 +12,13 @@ ABT_xstream *xstreams;
 int num_xstreams = DEFAULT_NUM_XSTREAMS;
 
 typedef ABT_thread TaskHandle;
-typedef void (*fork_t) (void *args);
+typedef void (*fork_t)(void *args);
 
 void argolib_init(int argc, char **argv) {
-    if (char *_env = getenv("ARGOLIB_WORKERS")) {
-        if (int _num_xstreams = atoi(_env)) {
+    char *_env = getenv("ARGOLIB_WORKERS");
+    if (_env != NULL) {
+        int _num_xstreams = atoi(_env);
+        if (_num_xstreams > 0) {
             num_xstreams = _num_xstreams;
         }
     }
@@ -64,19 +66,20 @@ void argolib_kernel(fork_t fptr, void *args) {
     printf("\tElapsed Time:%f\n", end_time - start_time);
 }
 
-TaskHandle* argolib_fork(fork_t fptr, void *args) {
+TaskHandle *argolib_fork(fork_t fptr, void *args) {
     int rank;
     TaskHandle thread_handle;
     ABT_xstream_self_rank(&rank);
     ABT_pool target_pool = pools[rank];
 
-    ABT_thread_create(target_pool, fptr, args, ABT_THREAD_ATTR_NULL,
-                      &thread_handle);
+    ABT_thread_create(target_pool, fptr, args, ABT_THREAD_ATTR_NULL, &thread_handle);
     return thread_handle;
 }
 
-void argolib_join(TaskHandle** handles, int size) {
-    for (int i = 0; i < size; i++) {ABT_thread_join(handles[i]);}
+void argolib_join(TaskHandle **handles, int size) {
+    for (int i = 0; i < size; i++) {
+        ABT_thread_join(handles[i]);
+    }
 }
 
 void argolib_finalize() {
