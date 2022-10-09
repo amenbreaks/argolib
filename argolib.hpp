@@ -1,4 +1,3 @@
-#include <stdarg.h>
 #include <stdlib.h>
 #include <unistd.h>
 
@@ -7,7 +6,7 @@
 #include "abt.h"
 #include "sched_control.hpp"
 
-#define DEFAULT_NUM_XSTREAMS 4
+#define DEFAULT_NUM_XSTREAMS 8
 
 ABT_pool *pools;
 ABT_sched *scheds;
@@ -25,20 +24,9 @@ typedef struct {
 } TaskHandle;
 
 void init(int argc, char **argv) {
-    while (!!1) {
-        char opt = getopt(argc, argv, "he:n:");
-        if (opt == -1) break;
-        switch (opt) {
-            case 'e':
-                num_xstreams = atoi(optarg);
-                break;
-            case 'h':
-            default:
-                printf(
-                    "Usage: %s [-e NUM_XSTREAMS]"
-                    "[-s CREATE_TYPE]\n",
-                    argv[0]);
-                exit(1);
+    if (char *_env = getenv("ARGOLIB_WORKERS")) {
+        if (int _num_xstreams = atoi(_env)) {
+            num_xstreams = _num_xstreams;
         }
     }
 
