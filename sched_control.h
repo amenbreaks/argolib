@@ -1,3 +1,4 @@
+#include <math.h>
 #include <stdarg.h>
 #include <stdlib.h>
 #include <time.h>
@@ -19,6 +20,7 @@ typedef struct {
 } mailbox_t;
 
 mailbox_t *mailboxes;
+double *deal_times;
 int mailbox_len;
 
 static int sched_init(ABT_sched sched, ABT_sched_config config) {
@@ -69,22 +71,30 @@ static void sched_run(ABT_sched sched) {
                 ABT_self_schedule(thread, ABT_POOL_NULL);
             }
 
-            ABT_pool_is_empty(pools[0], &is_pool_empty);
-            if (!is_pool_empty && work_count == 10) {
-                int target = (rand() % (mailbox_len));
-                if (target != self_idx && mailboxes[target].thread == NULL) {
-                    if (ABT_mutex_lock(mailboxes[target].mutex) == ABT_SUCCESS) {
-                        if (mailboxes[target].thread == NULL) {
-                            ABT_thread thread_to_send;
-                            ABT_pool_pop_thread(pools[0], &thread_to_send);
+            if (deal_times[self_idx] > ABT_get_wtime()) {
+                double _start = ABT_get_wtime();
 
-                            mailboxes[target].thread = thread_to_send;
+                ABT_pool_is_empty(pools[0], &is_pool_empty);
+                if (!is_pool_empty) {
+                    int target = (rand() % (mailbox_len));
+                    if (target != self_idx && mailboxes[target].thread == NULL) {
+                        if (ABT_mutex_lock(mailboxes[target].mutex) == ABT_SUCCESS) {
+                            if (mailboxes[target].thread == NULL) {
+                                ABT_thread thread_to_send;
+                                ABT_pool_pop_thread(pools[0], &thread_to_send);
+
+                                mailboxes[target].thread = thread_to_send;
+                            }
+
+                            ABT_mutex_unlock(mailboxes[target].mutex);
                         }
-
-                        ABT_mutex_unlock(mailboxes[target].mutex);
                     }
                 }
+
+                double _end = ABT_get_wtime();
+                deal_times[self_idx] = _end - (_end - _start) * log(rand());
             }
+
         } else {
             ABT_pool_pop_thread(pools[self_idx], &thread);
             if (thread != ABT_THREAD_NULL) {
@@ -141,11 +151,18 @@ static void create_scheds(int num, ABT_pool *pools, ABT_sched *scheds, int use_o
     /* Create a scheduler config */
     ABT_sched_config_create(&config, cv_event_freq, 10, ABT_sched_config_var_end);
 
-    mailbox_len = num;
-    mailboxes = (mailbox_t *)calloc(num, sizeof(mailbox_t));
-    for (int i = 0; i < mailbox_len; i++) {
-        mailboxes[i].thread = NULL;
-        ABT_mutex_create(&mailboxes[i].mutex);
+    if (use_optimization) {
+        mailbox_len = num;
+        mailboxes = (mailbox_t *)calloc(num, sizeof(mailbox_t));
+        for (int i = 0; i < mailbox_len; i++) {
+            mailboxes[i].thread = NULL;
+            ABT_mutex_create(&mailboxes[i].mutex);
+        }
+
+        deal_times = (double *)calloc(num, sizeof(double));
+        for (int i = 0; i < num; i++) {
+            deal_times[i] = ABT_get_wtime();
+        }
     }
 
     for (int i = 0; i < num; i++) {
