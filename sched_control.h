@@ -58,7 +58,8 @@ static void sched_run(ABT_sched sched) {
                 // If received a task from any other worker, push it to self private pool
                 if (mailboxes[self_idx].thread != NULL) {
                     if (mailboxes[self_idx].thread != ABT_THREAD_NULL) {
-                        ABT_pool_push_thread(pools[0], mailboxes[self_idx].thread);
+                        ABT_pool_push_thread_ex(pools[0], mailboxes[self_idx].thread,
+                                                ABT_POOL_CONTEXT_OP_THREAD_CREATE);
                     }
                     mailboxes[self_idx].thread = NULL;
                 }
@@ -81,7 +82,7 @@ static void sched_run(ABT_sched sched) {
                         if (ABT_mutex_lock(mailboxes[target].mutex) == ABT_SUCCESS) {
                             if (mailboxes[target].thread == NULL) {
                                 ABT_thread thread_to_send;
-                                ABT_pool_pop_thread(pools[0], &thread_to_send);
+                                ABT_pool_pop_thread_ex(pools[0], &thread_to_send, 0);
 
                                 mailboxes[target].thread = thread_to_send;
                             }

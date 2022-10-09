@@ -12,6 +12,7 @@ ABT_pool *pools;
 ABT_sched *scheds;
 ABT_xstream *xstreams;
 int use_optimization = 0;
+unsigned long long num_ult;
 int num_xstreams = DEFAULT_NUM_XSTREAMS;
 
 namespace argolib {
@@ -83,7 +84,8 @@ void kernel(T &&lambda) {
     lambda();
     double end_time = ABT_get_wtime();
     printf("[*] Kernel Report\n");
-    printf("\tElapsed Time:%f\n", end_time - start_time);
+    printf("\tElapsed Time: %f\n", end_time - start_time);
+    printf("\tULTs Created: %lld\n", num_ult);
 }
 
 void __executor(void *arg) { ((ThreadHandleArgs *)arg)->lambda(); }
@@ -95,6 +97,7 @@ TaskHandle fork(T &&lambda) {
     ABT_xstream_self_rank(&rank);
     ABT_pool target_pool = pools[rank];
 
+    num_ult++;
     thread_handle.args.lambda = lambda;
 
     ABT_thread_create(target_pool, (void (*)(void *)) & __executor, (void *)&thread_handle.args, ABT_THREAD_ATTR_NULL,
