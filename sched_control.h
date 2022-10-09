@@ -7,7 +7,6 @@
 
 #define PUBLIC_POOL_THRESHOLD 4
 
-namespace sched_control {
 typedef struct {
     uint32_t event_freq;
 } sched_data_t;
@@ -116,4 +115,3 @@ static void create_scheds(int num, ABT_pool *pools, ABT_sched *scheds) {
 
     ABT_sched_config_free(&config);
 }
-}  // namespace sched_control

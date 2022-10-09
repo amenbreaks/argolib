@@ -4,7 +4,7 @@
 #include <functional>
 
 #include "abt.h"
-#include "sched_control.hpp"
+#include "sched_control.h"
 
 #define DEFAULT_NUM_XSTREAMS 8
 
@@ -53,7 +53,7 @@ void init(int argc, char **argv) {
     srand(time(NULL));
 
     /* Create schedulers. */
-    sched_control::create_scheds(DEFAULT_NUM_XSTREAMS, pools, scheds);
+    create_scheds(DEFAULT_NUM_XSTREAMS, pools, scheds);
 
     /* Set up a primary execution stream. */
     ABT_xstream_self(&xstreams[0]);
