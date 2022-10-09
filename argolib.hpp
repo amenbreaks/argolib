@@ -43,7 +43,7 @@ void init(int argc, char **argv) {
     }
 
     /* Allocate memory. */
-    pools = (ABT_pool *)malloc(sizeof(ABT_pool) * num_xstreams);
+    pools = (ABT_pool *)malloc(sizeof(ABT_pool) * num_xstreams * 2);
     scheds = (ABT_sched *)malloc(sizeof(ABT_sched) * num_xstreams);
     xstreams = (ABT_xstream *)malloc(sizeof(ABT_xstream) * num_xstreams);
 
@@ -51,16 +51,21 @@ void init(int argc, char **argv) {
     ABT_init(argc, argv);
 
     /* Create pools. */
-    for (int i = 0; i < num_xstreams; i++) {
-        ABT_pool_create_basic(ABT_POOL_RANDWS, ABT_POOL_ACCESS_MPMC, ABT_TRUE, &pools[i]);
+    for (int i = 0; i < num_xstreams * 2; i++) {
+        if (i >= num_xstreams) {
+            // The last N pools are private to one pool
+            ABT_pool_create_basic(ABT_POOL_FIFO, ABT_POOL_ACCESS_PRIV, ABT_TRUE, &pools[i]);
+        } else {
+            // First N Pools will be public
+            ABT_pool_create_basic(ABT_POOL_RANDWS, ABT_POOL_ACCESS_MPMC, ABT_TRUE, &pools[i]);
+        }
     }
 
+    // Set the random seed
+    srand(time(NULL));
+
     /* Create schedulers. */
-    for (int i = 0; i < num_xstreams; i++) {
-        ABT_pool *tmp = (ABT_pool *)malloc(sizeof(ABT_pool) * num_xstreams);
-        sched_control::create_scheds(DEFAULT_NUM_XSTREAMS, pools, scheds);
-        free(tmp);
-    }
+    sched_control::create_scheds(DEFAULT_NUM_XSTREAMS, pools, scheds);
 
     /* Set up a primary execution stream. */
     ABT_xstream_self(&xstreams[0]);

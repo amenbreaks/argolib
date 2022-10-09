@@ -5,6 +5,8 @@
 
 #include "abt.h"
 
+#define PUBLIC_POOL_THRESHOLD 4
+
 namespace sched_control {
 typedef struct {
     uint32_t event_freq;
@@ -20,39 +22,46 @@ static int sched_init(ABT_sched sched, ABT_sched_config config) {
 }
 
 static void sched_run(ABT_sched sched) {
-    uint32_t work_count = 0;
-    sched_data_t *p_data;
     int num_pools;
     ABT_pool *pools;
-    int target;
-    ABT_bool stop;
-    unsigned seed = time(NULL);
+    uint32_t work_count = 0;
+    sched_data_t *sched_data;
 
-    ABT_sched_get_data(sched, (void **)&p_data);
     ABT_sched_get_num_pools(sched, &num_pools);
+    ABT_sched_get_data(sched, (void **)&sched_data);
+
     pools = (ABT_pool *)malloc(num_pools * sizeof(ABT_pool));
     ABT_sched_get_pools(sched, num_pools, 0, pools);
 
     while (1) {
-        /* Execute one work unit from the scheduler's pool */
-        ABT_thread thread;
+        ABT_thread thread = ABT_THREAD_NULL;
+
+        // Try popping from self private pool
         ABT_pool_pop_thread(pools[0], &thread);
+        if (thread == ABT_THREAD_NULL && num_pools >= 1) {
+            // If private pool was empty, try popping from self public pool
+            ABT_pool_pop_thread(pools[1], &thread);
+        }
+
         if (thread != ABT_THREAD_NULL) {
-            /* "thread" is associated with its original pool (pools[0]). */
+            // We either got a work unit from self private or public pool. Schedule it.
             ABT_self_schedule(thread, ABT_POOL_NULL);
-        } else if (num_pools > 1) {
-            /* Steal a work unit from other pools */
-            target = (num_pools == 2) ? 1 : (rand_r(&seed) % (num_pools - 1) + 1);
-            ABT_pool_pop_thread(pools[target], &thread);
+        } else if (num_pools >= 2) {
+            // Steal a work unit from the public pool of others
+
+            int steal_from_pool;
+            steal_from_pool = (rand() % (num_pools - 2)) + 2;
+            ABT_pool_pop_thread(pools[steal_from_pool], &thread);
+
             if (thread != ABT_THREAD_NULL) {
-                /* "thread" is associated with its original pool
-                 * (pools[target]). */
-                ABT_self_schedule(thread, pools[target]);
+                ABT_self_schedule(thread, pools[steal_from_pool]);
             }
         }
 
-        if (++work_count >= p_data->event_freq) {
+        if (++work_count >= sched_data->event_freq) {
             work_count = 0;
+
+            ABT_bool stop;
             ABT_sched_has_to_stop(sched, &stop);
             if (stop == ABT_TRUE) {
                 break;
@@ -75,9 +84,6 @@ static int sched_free(ABT_sched sched) {
 
 static void create_scheds(int num, ABT_pool *pools, ABT_sched *scheds) {
     ABT_sched_config config;
-    ABT_pool *my_pools;
-    int i, k;
-
     ABT_sched_config_var cv_event_freq = {.idx = 0, .type = ABT_SCHED_CONFIG_INT};
 
     ABT_sched_def sched_def = {
@@ -86,15 +92,27 @@ static void create_scheds(int num, ABT_pool *pools, ABT_sched *scheds) {
     /* Create a scheduler config */
     ABT_sched_config_create(&config, cv_event_freq, 10, ABT_sched_config_var_end);
 
-    my_pools = (ABT_pool *)malloc(num * sizeof(ABT_pool));
-    for (i = 0; i < num; i++) {
-        for (k = 0; k < num; k++) {
-            my_pools[k] = pools[(i + k) % num];
+    for (int i = 0; i < num; i++) {
+        ABT_pool *pools_available;
+
+        pools_available = (ABT_pool *)malloc((1 + num) * sizeof(ABT_pool));
+        pools_available[0] = pools[num + i];  // Private of self
+
+        for (int j = 0; j < num; j++) {
+            // Public of others (including self)
+            pools_available[j + 1] = pools[j];
         }
 
-        ABT_sched_create(&sched_def, num, my_pools, config, &scheds[i]);
+        // Move public of self to the 2nd position in array
+        auto tmp = pools_available[1];
+        pools_available[1] = pools_available[i + 1];
+        pools_available[i + 1] = tmp;
+
+        // Create the scheduler
+        ABT_sched_create(&sched_def, num + 1, pools_available, config, &scheds[i]);
+
+        free(pools_available);
     }
-    free(my_pools);
 
     ABT_sched_config_free(&config);
 }
