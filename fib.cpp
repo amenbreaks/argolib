@@ -14,7 +14,7 @@ int fib(int n) {
 }
 
 int main(int argc, char** argv) {
-    int n = 25;
+    int n = 30;
     argolib::init(argc, argv);
 
     int result;

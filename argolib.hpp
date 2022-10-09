@@ -11,6 +11,7 @@
 ABT_pool *pools;
 ABT_sched *scheds;
 ABT_xstream *xstreams;
+int use_optimization = 0;
 int num_xstreams = DEFAULT_NUM_XSTREAMS;
 
 namespace argolib {
@@ -32,6 +33,14 @@ void init(int argc, char **argv) {
         }
     }
 
+    char *_optimizations_str = getenv("ARGOLIB_OPTIMIZATION");
+    if (_optimizations_str) {
+        use_optimization = atoi(_optimizations_str);
+        if (use_optimization) {
+            printf("[+] Argolib: Using optimization\n");
+        }
+    }
+
     /* Allocate memory. */
     pools = (ABT_pool *)malloc(sizeof(ABT_pool) * num_xstreams * 2);
     scheds = (ABT_sched *)malloc(sizeof(ABT_sched) * num_xstreams);
@@ -44,14 +53,19 @@ void init(int argc, char **argv) {
     for (int i = 0; i < num_xstreams; i++) {
         ABT_pool_access access;
 
-        // Create private pools
-        access = ABT_POOL_ACCESS_PRIV;
+        if (use_optimization) {
+            // Create private pools
+            access = ABT_POOL_ACCESS_PRIV;
+        } else {
+            // Create public pools
+            access = ABT_POOL_ACCESS_MPSC;
+        }
 
         ABT_pool_create_basic(ABT_POOL_RANDWS, access, ABT_TRUE, &pools[i]);
     }
 
     /* Create schedulers. */
-    create_scheds(num_xstreams, pools, scheds);
+    create_scheds(num_xstreams, pools, scheds, use_optimization);
 
     /* Set up a primary execution stream. */
     ABT_xstream_self(&xstreams[0]);
