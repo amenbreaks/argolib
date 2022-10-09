@@ -7,8 +7,11 @@ typedef struct {
 
 void fib(void *args) {
     int n = ((fibargs_t *) args )-> n;
-    int ret = ((fibargs_t *) args )-> ret;
-    if (n < 2) return;
+    int *ret = &((fibargs_t *) args )-> ret;
+    if (n < 2) {
+        *ret=n;
+        return;
+    }
 
     fibargs_t x = {n-1, 0};
     fibargs_t y = {n-2, 0};
@@ -22,8 +25,8 @@ void fib(void *args) {
     argolib_join(threadlist, 2);
 
     free(threadlist);
-
-    ret = x.ret + y.ret;
+    
+    *ret = x.ret + y.ret;
     return;
 }
 
@@ -36,7 +39,7 @@ int main(int argc, char** argv) {
     argolib_kernel(fib, &args);
     result = args.ret;
 
-    printf("Fib(%d) = %d",n, result);
+    printf("Fib(%d) = %d\n",n, result);
 
     argolib_finalize();
     return 0;
