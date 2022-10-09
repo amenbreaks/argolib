@@ -24,8 +24,10 @@ typedef struct {
 } TaskHandle;
 
 void init(int argc, char **argv) {
-    if (char *_env = getenv("ARGOLIB_WORKERS")) {
-        if (int _num_xstreams = atoi(_env)) {
+    char *_num_workers_str = getenv("ARGOLIB_WORKERS");
+    if (_num_workers_str) {
+        int _num_xstreams = atoi(_num_workers_str);
+        if (_num_xstreams > 0) {
             num_xstreams = _num_xstreams;
         }
     }
@@ -39,21 +41,17 @@ void init(int argc, char **argv) {
     ABT_init(argc, argv);
 
     /* Create pools. */
-    for (int i = 0; i < num_xstreams * 2; i++) {
-        if (i >= num_xstreams) {
-            // The last N pools are private to one pool
-            ABT_pool_create_basic(ABT_POOL_FIFO, ABT_POOL_ACCESS_PRIV, ABT_TRUE, &pools[i]);
-        } else {
-            // First N Pools will be public
-            ABT_pool_create_basic(ABT_POOL_RANDWS, ABT_POOL_ACCESS_MPMC, ABT_TRUE, &pools[i]);
-        }
+    for (int i = 0; i < num_xstreams; i++) {
+        ABT_pool_access access;
+
+        // Create private pools
+        access = ABT_POOL_ACCESS_PRIV;
+
+        ABT_pool_create_basic(ABT_POOL_RANDWS, access, ABT_TRUE, &pools[i]);
     }
 
-    // Set the random seed
-    srand(time(NULL));
-
     /* Create schedulers. */
-    create_scheds(DEFAULT_NUM_XSTREAMS, pools, scheds);
+    create_scheds(num_xstreams, pools, scheds);
 
     /* Set up a primary execution stream. */
     ABT_xstream_self(&xstreams[0]);
@@ -94,13 +92,17 @@ TaskHandle fork(T &&lambda) {
 template <typename... TaskHandle>
 void join(TaskHandle... handles) {
     ((ABT_thread_join(handles.thread)), ...);
+    ((ABT_thread_free(&handles.thread)), ...);
 }
 
 void finalize() {
     /* Join secondary execution streams. */
     for (int i = 1; i < num_xstreams; i++) {
+        ABT_sched_exit(scheds[i]);
         ABT_xstream_join(xstreams[i]);
+
         ABT_xstream_free(&xstreams[i]);
+        ABT_sched_free(&scheds[i]);
     }
 
     /* Finalize Argobots. */
@@ -108,12 +110,8 @@ void finalize() {
 
     /* Free allocated memory. */
     free(xstreams);
-    free(pools);
-
-    for (int i = 1; i < DEFAULT_NUM_XSTREAMS; i++) {
-        ABT_sched_free(&scheds[i]);
-    }
     free(scheds);
+    free(pools);
 }
 
 }  // namespace argolib

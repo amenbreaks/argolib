@@ -11,6 +11,14 @@ typedef struct {
     uint32_t event_freq;
 } sched_data_t;
 
+typedef struct {
+    ABT_thread thread;
+    ABT_mutex mutex;
+} mailbox_t;
+
+mailbox_t *mailboxes;
+int mailbox_len;
+
 static int sched_init(ABT_sched sched, ABT_sched_config config) {
     sched_data_t *p_data = (sched_data_t *)calloc(1, sizeof(sched_data_t));
 
@@ -30,30 +38,48 @@ static void sched_run(ABT_sched sched) {
     ABT_sched_get_data(sched, (void **)&sched_data);
 
     pools = (ABT_pool *)malloc(num_pools * sizeof(ABT_pool));
-    ABT_sched_get_pools(sched, num_pools, 0, pools);
+
+    int self_idx = -1;
+    ABT_xstream_self_rank(&self_idx);
 
     while (1) {
+        ABT_sched_get_pools(sched, num_pools, 0, pools);
         ABT_thread thread = ABT_THREAD_NULL;
+
+        int is_pool_empty;
+        ABT_pool_is_empty(pools[0], &is_pool_empty);
+
+        if (is_pool_empty) {
+            // If received a task from any other worker, push it to self private pool
+            if (mailboxes[self_idx].thread != NULL) {
+                if (mailboxes[self_idx].thread != ABT_THREAD_NULL) {
+                    ABT_pool_push_thread(pools[0], mailboxes[self_idx].thread);
+                }
+                mailboxes[self_idx].thread = NULL;
+            }
+        }
 
         // Try popping from self private pool
         ABT_pool_pop_thread(pools[0], &thread);
-        if (thread == ABT_THREAD_NULL && num_pools >= 1) {
-            // If private pool was empty, try popping from self public pool
-            ABT_pool_pop_thread(pools[1], &thread);
-        }
 
         if (thread != ABT_THREAD_NULL) {
-            // We either got a work unit from self private or public pool. Schedule it.
             ABT_self_schedule(thread, ABT_POOL_NULL);
-        } else if (num_pools >= 2) {
-            // Steal a work unit from the public pool of others
+        }
 
-            int steal_from_pool;
-            steal_from_pool = (rand() % (num_pools - 2)) + 2;
-            ABT_pool_pop_thread(pools[steal_from_pool], &thread);
+        ABT_pool_is_empty(pools[0], &is_pool_empty);
+        if (!is_pool_empty && work_count == 10) {
+            int target = (rand() % (mailbox_len));
+            if (target != self_idx && mailboxes[target].thread == NULL) {
+                if (ABT_mutex_lock(mailboxes[target].mutex) == ABT_SUCCESS) {
+                    if (mailboxes[target].thread == NULL) {
+                        ABT_thread thread_to_send;
+                        ABT_pool_pop_thread(pools[0], &thread_to_send);
 
-            if (thread != ABT_THREAD_NULL) {
-                ABT_self_schedule(thread, pools[steal_from_pool]);
+                        mailboxes[target].thread = thread_to_send;
+                    }
+
+                    ABT_mutex_unlock(mailboxes[target].mutex);
+                }
             }
         }
 
@@ -62,6 +88,7 @@ static void sched_run(ABT_sched sched) {
 
             ABT_bool stop;
             ABT_sched_has_to_stop(sched, &stop);
+
             if (stop == ABT_TRUE) {
                 break;
             }
@@ -82,6 +109,9 @@ static int sched_free(ABT_sched sched) {
 }
 
 static void create_scheds(int num, ABT_pool *pools, ABT_sched *scheds) {
+    // Set the random seed
+    srand(time(NULL));
+
     ABT_sched_config config;
     ABT_sched_config_var cv_event_freq = {.idx = 0, .type = ABT_SCHED_CONFIG_INT};
 
@@ -91,24 +121,21 @@ static void create_scheds(int num, ABT_pool *pools, ABT_sched *scheds) {
     /* Create a scheduler config */
     ABT_sched_config_create(&config, cv_event_freq, 10, ABT_sched_config_var_end);
 
+    mailbox_len = num;
+    mailboxes = (mailbox_t *)calloc(num, sizeof(mailbox_t));
+    for (int i = 0; i < mailbox_len; i++) {
+        mailboxes[i].thread = NULL;
+        ABT_mutex_create(&mailboxes[i].mutex);
+    }
+
     for (int i = 0; i < num; i++) {
         ABT_pool *pools_available;
 
-        pools_available = (ABT_pool *)malloc((1 + num) * sizeof(ABT_pool));
-        pools_available[0] = pools[num + i];  // Private of self
-
-        for (int j = 0; j < num; j++) {
-            // Public of others (including self)
-            pools_available[j + 1] = pools[j];
-        }
-
-        // Move public of self to the 2nd position in array
-        ABT_pool tmp = pools_available[1];
-        pools_available[1] = pools_available[i + 1];
-        pools_available[i + 1] = tmp;
+        pools_available = (ABT_pool *)malloc(sizeof(ABT_pool));
+        pools_available[0] = pools[i];  // Private of self
 
         // Create the scheduler
-        ABT_sched_create(&sched_def, num + 1, pools_available, config, &scheds[i]);
+        ABT_sched_create(&sched_def, 1, pools_available, config, &scheds[i]);
 
         free(pools_available);
     }
