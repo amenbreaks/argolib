@@ -103,7 +103,7 @@ static void create_scheds(int num, ABT_pool *pools, ABT_sched *scheds) {
         }
 
         // Move public of self to the 2nd position in array
-        auto tmp = pools_available[1];
+        ABT_pool tmp = pools_available[1];
         pools_available[1] = pools_available[i + 1];
         pools_available[i + 1] = tmp;
 

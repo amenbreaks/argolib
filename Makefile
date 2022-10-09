@@ -1,6 +1,11 @@
 path=-L/home/krauzer/argobots/rada -I/home/krauzer/argobots-install/include
-fib: fib.cpp argolib.hpp sched_control.h
-	g++ $(path) -o fib fib.cpp -labt
 
+all: fib_cpp fib_c
+
+fib_cpp: fib.cpp argolib.hpp sched_control.h
+	g++ -O3 $(path) -o fib_cpp fib.cpp -labt
+
+fib_c: fib.c argolib.h sched_control.h
+	gcc -O3 $(path) -o fib_c fib.c -labt
 clean:
-	rm -f fib
+	rm -f fib_*
