@@ -1,6 +1,6 @@
 #include <iostream>
 
-#include "argolib.hpp"
+#include "argolibI.hpp"
 
 int fib(int n) {
     if (n < 2) return n;
