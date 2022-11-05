@@ -3,6 +3,10 @@
 
 #include "abt.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef ABT_thread TaskHandle;
 typedef void (*fork_t)(void *args);
 
@@ -15,3 +19,7 @@ TaskHandle *argolib_fork(fork_t fptr, void *args);
 void argolib_join(TaskHandle **handles, int size);
 
 void argolib_finalize();
+
+#ifdef __cplusplus
+}
+#endif

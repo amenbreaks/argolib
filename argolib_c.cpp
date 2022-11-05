@@ -1,12 +1,16 @@
 
-#include "argolib.h"
+#include "argolib_c.h"
 
 #include <stdlib.h>
 #include <unistd.h>
 
-#include "sched_control.h"
+#include "sched_control.hpp"
 
 #define DEFAULT_NUM_XSTREAMS 8
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 ABT_pool *pools;
 ABT_sched *scheds;
@@ -117,3 +121,7 @@ void argolib_finalize() {
     free(scheds);
     free(pools);
 }
+
+#ifdef __cplusplus
+}
+#endif

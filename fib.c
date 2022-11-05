@@ -1,4 +1,4 @@
-#include "argolib.h"
+#include "argolib_c.h"
 
 typedef struct {
     int n;
