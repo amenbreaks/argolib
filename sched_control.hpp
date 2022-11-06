@@ -67,7 +67,7 @@ static void sched_run(ABT_sched sched) {
     sched_data_t *sched_data;
 
     ABT_sched_get_num_pools(sched, &num_pools);
-    num_pools /= 2;
+    if (!sched_use_optimization) num_pools /= 2;
 
     ABT_sched_get_data(sched, (void **)&sched_data);
 
