@@ -1,7 +1,7 @@
 lpath=/home/priyansh/Desktop/argolib
 path=-L$(lpath) -I/home/krauzer/argobots-install/include
 
-all: fib_cpp fib_c libargo.so
+all: fib_cpp fib_c libargo.so iter_avg_cpp
 
 argolib.cpp: sched_control.hpp
 

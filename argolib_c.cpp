@@ -4,6 +4,11 @@
 #include <stdlib.h>
 #include <unistd.h>
 
+#include <algorithm>
+#include <vector>
+
+using namespace std;
+
 #include "sched_control.hpp"
 
 #define DEFAULT_NUM_XSTREAMS 8
@@ -120,6 +125,54 @@ void argolib_finalize() {
     free(xstreams);
     free(scheds);
     free(pools);
+}
+
+void argolib_start_tracing() {
+    if (tracing_enabled == false) {
+        printf("[=] Tracing\n");
+    }
+
+    int idx = 0;
+    for (auto worker_metadata : workers_metadata) {
+        worker_metadata->steal_counter = 0;
+        worker_metadata->async_counter = idx++ * (INT32_MAX / num_xstreams);
+    }
+
+    tracing_enabled = true;
+}
+
+void list_aggregation() {
+    vector<vector<WorkerThreadStealInfo>> workers_steal_pll_new(num_xstreams);
+    for (auto ll : workers_steal_pll) {
+        for (auto tsi : ll) {
+            workers_steal_pll_new[tsi.wc].push_back(tsi);
+        }
+    }
+
+    workers_steal_pll = workers_steal_pll_new;
+}
+
+void list_sort() {
+    for (auto v : workers_steal_pll) {
+        sort(v.begin(), v.end());
+    }
+}
+
+void argolib_stop_tracing() {
+    if (replay_enabled == false) {
+        list_aggregation();
+
+        int idx = 0;
+        for (auto ll : workers_steal_pll) {
+            workers_steal_pll_ptr[idx++] = 0;
+        }
+
+        printf("[=] Replaying\n");
+
+        list_sort();
+    }
+
+    replay_enabled = true;
 }
 
 #ifdef __cplusplus

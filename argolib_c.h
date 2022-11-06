@@ -20,6 +20,10 @@ void argolib_join(TaskHandle **handles, int size);
 
 void argolib_finalize();
 
+void argolib_start_tracing();
+
+void argolib_stop_tracing();
+
 #ifdef __cplusplus
 }
 #endif
