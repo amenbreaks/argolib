@@ -4,9 +4,39 @@
 #include <time.h>
 #include <unistd.h>
 
+#include <atomic>
+#include <vector>
+
 #include "abt.h"
 
-#define PUBLIC_POOL_THRESHOLD 4
+using namespace std;
+
+ABT_key key_thread_id;
+typedef struct {
+    atomic<uint64_t> async_counter;
+    atomic<uint64_t> steal_counter;
+} WorkerMetadata;
+
+vector<WorkerMetadata *> workers_metadata;
+
+struct WorkerThreadStealInfo {
+    uint64_t tid;
+    uint64_t wc;
+    uint64_t we;
+    uint64_t sc;
+
+    bool operator<(const struct WorkerThreadStealInfo &wtsi) const { return (tid < wtsi.tid); }
+};
+
+typedef struct WorkerThreadStealInfo WorkerThreadStealInfo;
+
+vector<vector<WorkerThreadStealInfo>> workers_steal_pll;
+vector<int> workers_steal_pll_ptr;
+
+vector<vector<ABT_thread>> workers_steal_arr;
+
+static int replay_enabled = false;
+static int tracing_enabled = false;
 
 int sched_use_optimization;
 
@@ -39,6 +69,8 @@ static void sched_run(ABT_sched sched) {
     sched_data_t *sched_data;
 
     ABT_sched_get_num_pools(sched, &num_pools);
+    num_pools /= 2;
+
     ABT_sched_get_data(sched, (void **)&sched_data);
 
     pools = (ABT_pool *)malloc(num_pools * sizeof(ABT_pool));
@@ -100,14 +132,57 @@ static void sched_run(ABT_sched sched) {
             ABT_pool_pop_thread(pools[self_idx], &thread);
             if (thread != ABT_THREAD_NULL) {
                 // Got task from self pool
+
+                uint64_t thread_id = 0;
+                ABT_thread_get_specific(thread, (ABT_key)key_thread_id, (void **)&thread_id);
                 ABT_self_schedule(thread, ABT_POOL_NULL);
             } else if (num_pools > 1) {
-                // Steal from someone else
-                int steal_from = rand() % (num_pools - 1);
-                ABT_pool_pop_thread(pools[steal_from], &thread);
+                if (replay_enabled) {
+                    if (workers_steal_arr[self_idx].size() > workers_metadata[self_idx]->steal_counter) {
+                        int tries = 0;
+                        while (tries++ < 5 && workers_steal_arr[self_idx][workers_metadata[self_idx]->steal_counter] ==
+                                                  ABT_THREAD_NULL) {
+                        }
 
-                if (thread != ABT_THREAD_NULL) {
-                    ABT_self_schedule(thread, pools[steal_from]);
+                        thread = workers_steal_arr[self_idx][workers_metadata[self_idx]->steal_counter];
+                        if (thread != ABT_THREAD_NULL) {
+                            uint64_t thread_id = 0;
+                            ABT_thread_get_specific(thread, (ABT_key)key_thread_id, (void **)&thread_id);
+
+                            workers_steal_arr[self_idx][workers_metadata[self_idx]->steal_counter] = ABT_THREAD_NULL;
+                            workers_metadata[self_idx]->steal_counter++;
+                            ABT_self_schedule(thread, ABT_POOL_NULL);
+                        }
+                    }
+                } else if (tracing_enabled) {
+                    int steal_from = rand() % (num_pools - 1);
+                    if (steal_from == self_idx) continue;
+
+                    ABT_pool_pop_thread(pools[steal_from], &thread);
+                    if (thread != ABT_THREAD_NULL) {
+                        uint64_t thread_id = 0;
+                        ABT_thread_get_specific(thread, (ABT_key)key_thread_id, (void **)&thread_id);
+
+                        if (thread_id != 0) {
+                            WorkerThreadStealInfo wtsi;
+                            wtsi.tid = thread_id;
+                            wtsi.wc = steal_from;
+                            wtsi.we = self_idx;
+                            wtsi.sc = workers_metadata[self_idx]->steal_counter++;
+
+                            workers_steal_pll[self_idx].push_back(wtsi);
+                        }
+
+                        ABT_self_schedule(thread, pools[steal_from]);
+                    }
+                } else {
+                    // Steal from someone else
+                    int steal_from = rand() % (num_pools - 1);
+                    ABT_pool_pop_thread(pools[steal_from], &thread);
+
+                    if (thread != ABT_THREAD_NULL) {
+                        ABT_self_schedule(thread, pools[steal_from]);
+                    }
                 }
             }
         }
@@ -175,7 +250,7 @@ static void create_scheds(int num, ABT_pool *pools, ABT_sched *scheds, int use_o
             pools_available = (ABT_pool *)malloc(sizeof(ABT_pool));
             pools_available[0] = pools[i];  // Private of self
         } else {
-            pool_size = num;
+            pool_size = num * 2;
             pools_available = pools;
         }
 

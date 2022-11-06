@@ -16,6 +16,7 @@ fib_cpp: fib.cpp
 fib_c: fib.c libargo
 	gcc -O3 $(path) -o fib_c fib.c -lm -lstdc++ -labt -largo
 
+iter_avg_cpp: iter_avg.cpp
 	g++ -O3 $(path) -o iter_avg_cpp iter_avg.cpp -lm -labt
 
 clean:

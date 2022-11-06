@@ -2,7 +2,6 @@
 #include <functional>
 
 #include "abt.h"
-#include "sched_control.hpp"
 
 namespace argolib {
 typedef struct {

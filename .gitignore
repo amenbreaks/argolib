@@ -1,3 +1,4 @@
 fib_c
 fib_cpp
 .vscode/
+*.so
