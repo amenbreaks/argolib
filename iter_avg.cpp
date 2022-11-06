@@ -8,7 +8,7 @@
 
 #include "argolibI.hpp"
 
-#define SIZE 48 * 256 * 2048
+#define SIZE 25165824
 #define ITERATIONS 64
 
 double *myNew, *myVal;
@@ -32,9 +32,8 @@ int ceilDiv(int d) {
 void recurse(uint64_t low, uint64_t high) {
     if ((high - low) > 512) {
         uint64_t mid = (high + low) / 2;
-        /* An async task */
+
         argolib::TaskHandle task1 = argolib::fork([&]() { recurse(low, mid); });
-        // argolib::TaskHandle task2 = argolib::fork([&]() { recurse(mid, high); });
         recurse(mid, high);
 
         argolib::join(task1);

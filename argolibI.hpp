@@ -7,7 +7,7 @@
 #include "argolib.hpp"
 #include "sched_control.hpp"
 
-#define DEFAULT_NUM_XSTREAMS 3
+#define DEFAULT_NUM_XSTREAMS 8
 
 ABT_pool *pools;
 ABT_sched *scheds;
@@ -88,6 +88,7 @@ void __executor(void *arg) { ((ThreadHandleArgs *)arg)->lambda(); }
 
 template <typename T>
 void kernel(T &&lambda) {
+    num_ult = 0;
     double start_time = ABT_get_wtime();
 
     TaskHandle thread_handle;
@@ -97,6 +98,7 @@ void kernel(T &&lambda) {
     ABT_thread_join(thread_handle.thread);
 
     double end_time = ABT_get_wtime();
+
     printf("[*] Kernel Report\n");
     printf("\tElapsed Time: %f\n", end_time - start_time);
     printf("\tULTs Created: %lld\n", num_ult.load());
@@ -127,7 +129,7 @@ TaskHandle fork(T &&lambda) {
                 auto thread_info = workers_steal_pll[rank][cur];
 
                 if (thread_info.tid == tid) {
-                    workers_steal_arr[thread_info.we][thread_info.sc] = thread_handle.thread;
+                    ABT_pool_push_thread(pools[thread_info.we], thread_handle.thread);
                     workers_steal_pll_ptr[rank]++;
                 } else {
                     ABT_pool_push_thread(target_pool, thread_handle.thread);
@@ -174,6 +176,10 @@ void finalize() {
 }
 
 void start_tracing() {
+    if (tracing_enabled == false) {
+        printf("[=] Tracing\n");
+    }
+
     int idx = 0;
     for (auto worker_metadata : workers_metadata) {
         worker_metadata->steal_counter = 0;
@@ -204,16 +210,8 @@ void stop_tracing() {
     if (replay_enabled == false) {
         list_aggregation();
 
-        for (int i = 0; i < num_xstreams; i++) {
-            workers_steal_arr.push_back(vector<ABT_thread>(0));
-        }
-
         int idx = 0;
         for (auto ll : workers_steal_pll) {
-            for (auto tsi : ll) {
-                workers_steal_arr[tsi.we].push_back(ABT_THREAD_NULL);
-            }
-
             workers_steal_pll_ptr[idx++] = 0;
         }
 

@@ -2,3 +2,4 @@ fib_c
 fib_cpp
 .vscode/
 *.so
+iter_avg_*

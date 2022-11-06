@@ -33,8 +33,6 @@ typedef struct WorkerThreadStealInfo WorkerThreadStealInfo;
 vector<vector<WorkerThreadStealInfo>> workers_steal_pll;
 vector<int> workers_steal_pll_ptr;
 
-vector<vector<ABT_thread>> workers_steal_arr;
-
 static int replay_enabled = false;
 static int tracing_enabled = false;
 
@@ -138,22 +136,7 @@ static void sched_run(ABT_sched sched) {
                 ABT_self_schedule(thread, ABT_POOL_NULL);
             } else if (num_pools > 1) {
                 if (replay_enabled) {
-                    if (workers_steal_arr[self_idx].size() > workers_metadata[self_idx]->steal_counter) {
-                        int tries = 0;
-                        while (tries++ < 5 && workers_steal_arr[self_idx][workers_metadata[self_idx]->steal_counter] ==
-                                                  ABT_THREAD_NULL) {
-                        }
-
-                        thread = workers_steal_arr[self_idx][workers_metadata[self_idx]->steal_counter];
-                        if (thread != ABT_THREAD_NULL) {
-                            uint64_t thread_id = 0;
-                            ABT_thread_get_specific(thread, (ABT_key)key_thread_id, (void **)&thread_id);
-
-                            workers_steal_arr[self_idx][workers_metadata[self_idx]->steal_counter] = ABT_THREAD_NULL;
-                            workers_metadata[self_idx]->steal_counter++;
-                            ABT_self_schedule(thread, ABT_POOL_NULL);
-                        }
-                    }
+                    // Do nothing, other workers will send work to me automatically
                 } else if (tracing_enabled) {
                     int steal_from = rand() % (num_pools - 1);
                     if (steal_from == self_idx) continue;
