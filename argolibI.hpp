@@ -6,8 +6,11 @@
 
 #include "argolib.hpp"
 #include "sched_control.hpp"
+#include "./pmu/pcm.h"
 
 #define DEFAULT_NUM_XSTREAMS 8
+#define INC 1
+#define DEC 0
 
 ABT_pool *pools;
 ABT_sched *scheds;
@@ -15,6 +18,8 @@ ABT_xstream *xstreams;
 int use_optimization = 0;
 atomic<unsigned long long> num_ult;
 int num_xstreams = DEFAULT_NUM_XSTREAMS;
+int shutdown = 1;
+int conf_DOP_cfft = 1;
 
 using namespace std;
 
@@ -35,6 +40,10 @@ void init(int argc, char **argv) {
             printf("[+] Argolib: Using optimization\n");
         }
     }
+
+    /* Starting Performance Counter Monitor */
+    shutdown = 0;
+    logger::start();
 
     /* Allocate memory. */
     pools = (ABT_pool *)malloc(sizeof(ABT_pool) * num_xstreams * 2);
@@ -157,6 +166,10 @@ void join(TaskHandle... handles) {
 }
 
 void finalize() {
+    /* Shutting Down PCM */
+    shutdown = 1;
+    logger::___pcm->cleanup();
+
     /* Join secondary execution streams. */
     for (int i = 1; i < num_xstreams; i++) {
         ABT_sched_exit(scheds[i]);
@@ -173,6 +186,7 @@ void finalize() {
     free(xstreams);
     free(scheds);
     free(pools);
+    
 }
 
 void start_tracing() {
@@ -222,5 +236,46 @@ void stop_tracing() {
 
     replay_enabled = true;
 }
+
+void configure_DOP(double JPI_prev, double JPI_curr) {
+    static int DP_last_action = INC, wActive = num_xstreams;
+    const int wChange=2;                            // find experimentally on your system
+    if(conf_DOP_cfft) {
+        sleep_argolib_num_workers(wChange);
+        DP_last_action=DEC;
+        conf_DOP_cfft = 0;
+        return;
+    }
+    if(JPI_prev > JPI_curr) {
+        if(DP_last_action==DEC) {
+            sleep_argolib_num_workers(wChange);
+        } else {
+            awake_argolib_num_workers(wChange);
+        }
+    } else {
+        if(DP_last_action == DEC) {
+            awake_argolib_num_workers(wChange);
+            DP_last_action = INC;
+        } else {
+            sleep_argolib_num_workers(wChange);
+            DP_last_action = DEC;
+        }
+    }
+}
+
+
+void daemon_profiler() {                // a dedicated pthread
+    const int fixed_interval= 2;        //some value that you find experimentally
+    sleep(1000);                        // warmup duration
+    double JPI_prev = 0;                //JPI is Joules per Instructions Retired
+    while (!shutdown) {
+        double JPI_curr = logger::end();
+        logger::___before_sstate = pcm::getSystemCounterState();
+        configure_DOP(JPI_prev, JPI_curr);
+        JPI_prev = JPI_curr;
+        sleep(fixed_interval);
+    }
+}
+
 
 }  // namespace argolib

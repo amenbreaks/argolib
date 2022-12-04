@@ -1,0 +1,26 @@
+1) Install Intel PCM
+wget https://github.com/intel/pcm/archive/refs/tags/202210.tar.gz
+tar -xvf 202210.tar.gz
+cd pcm-202210
+mkdir build
+cd build
+cmake ..
+cmake --build .
+
+2) Use PCM inside testcases
+logger::start();
+/*Do something*/
+logger::end();
+
+Note that there are some initialization related code in logger::start(). You have to call that piece
+of code only once during the execution. E.g., you can make it as a part of argolib::init API.
+
+logger::end shows how to use metrics such as JPI, EDP, and IPC.
+
+3) Compile test cases
+Set PCMROOT = /absolute path to the directory/pcm-202210 inside Makefile
+make
+
+4) Run test cases
+sudo modprob msr
+sudo LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$PCMROOT/build/lib ./vecadd
