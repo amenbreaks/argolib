@@ -248,7 +248,7 @@ void sleep_argolib_num_workers(int n) {
             break;
         }
 
-        if (wm->p_sleep == false) {
+        if (wm->should_sleep == false) {
             wm->should_sleep = true;
             put_to_sleep++;
         }
@@ -263,8 +263,8 @@ void awake_argolib_num_workers(int n) {
             break;
         }
 
-        if (wm->p_sleep == true) {
-            pthread_cond_signal(wm->p_sleep_cond);
+        if (wm->should_sleep == true) {
+            pthread_cond_signal(&wm->p_sleep_cond);
             awake_from_sleep++;
         }
     }
@@ -296,7 +296,7 @@ void configure_DOP(double JPI_prev, double JPI_curr) {
     }
 }
 
-void daemon_profiler() {           // a dedicated pthread
+void* daemon_profiler(void* arg) {           // a dedicated pthread
     const int fixed_interval = 2;  // some value that you find experimentally
     sleep(1000);                   // warmup duration
     double JPI_prev = 0;           // JPI is Joules per Instructions Retired

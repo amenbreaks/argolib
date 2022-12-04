@@ -14,13 +14,13 @@ argolib.cpp: sched_control.hpp
 # # g++ -c -fPIC -o libargo.o argolib_c.cpp
 
 fib_cpp: fib.cpp 
-	g++ -I$(PCMROOT)/src -O3 -o fib_cpp fib.cpp -L$(PCMROOT)/build/lib -lpcm -lm -labt
+	g++ -I$(PCMROOT)/src -O3 -o fib_cpp fib.cpp -L$(PCMROOT)/build/lib -lpcm -lm -labt -lpthread
 
 # fib_c: fib.c libargo
 # 	gcc -O3 $(path) -o fib_c fib.c -lm -lstdc++ -labt -largo
 
 iter_avg_cpp: iter_avg.cpp
-	g++ -I$(PCMROOT)/src -O3 -o iter_avg_cpp iter_avg.cpp -L$(PCMROOT)/build/lib -lpcm -lm -labt
+	g++ -I$(PCMROOT)/src -g -o iter_avg_cpp iter_avg.cpp -L$(PCMROOT)/build/lib -lpcm -lm -labt
 
 clean:
 	rm -f fib_* iter_avg_* libargo.so 

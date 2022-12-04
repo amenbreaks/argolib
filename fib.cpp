@@ -17,6 +17,9 @@ int main(int argc, char** argv) {
     int n = 30;
     argolib::init(argc, argv);
 
+    // pthread_t tid;
+    // pthread_create(&tid, NULL, &argolib::daemon_profiler, NULL);
+
     int result;
     argolib::kernel([&]() { result = fib(n); });
 

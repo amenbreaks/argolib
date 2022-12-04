@@ -42,7 +42,9 @@ namespace logger {
     /////////////////////////////////////////////////////////////////////////
     ////////// END OF INITIALIZATION ----- MUST BE DONE ONLY ONCE ///////////
     /////////////////////////////////////////////////////////////////////////
-
+    auto time_now = std::chrono::system_clock::now();
+    auto seconds = std::chrono::duration<double>(time_now.time_since_epoch());
+    start_time = seconds.count();
     // ___before_sstate = pcm::getSystemCounterState();
   }
 

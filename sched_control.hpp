@@ -65,7 +65,7 @@ static int sched_init(ABT_sched sched, ABT_sched_config config) {
     return ABT_SUCCESS;
 }
 
-static void sched_run(ABT_sched sched) {
+static void sched_runx(ABT_sched sched) {
     int num_pools;
     ABT_pool *pools;
     uint32_t work_count = 0;
@@ -221,7 +221,7 @@ static void create_scheds(int num, ABT_pool *pools, ABT_sched *scheds, int use_o
     ABT_sched_config_var cv_event_freq = {.idx = 0, .type = ABT_SCHED_CONFIG_INT};
 
     ABT_sched_def sched_def = {
-        .type = ABT_SCHED_TYPE_ULT, .init = sched_init, .run = sched_run, .free = sched_free, .get_migr_pool = NULL};
+        .type = ABT_SCHED_TYPE_ULT, .init = sched_init, .run = sched_runx, .free = sched_free, .get_migr_pool = NULL};
 
     /* Create a scheduler config */
     ABT_sched_config_create(&config, cv_event_freq, 10, ABT_sched_config_var_end);
