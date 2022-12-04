@@ -28,3 +28,5 @@ clean:
 run: fib_cpp
 	sudo LD_LIBRARY_PATH=$(LD_LIBRARY_PATH):$(lpath):$(PCMROOT)/build/lib ./fib_cpp
 # LD_LIBRARY_PATH=$(LD_LIBRARY_PATH):$(lpath) ./fib_c
+
+# sudo LD_LIBRARY_PATH=/home/nsl400/pcm-202210/build/lib ./fib_cpp

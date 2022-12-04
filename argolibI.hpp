@@ -172,6 +172,10 @@ void join(TaskHandle... handles) {
 void finalize() {
     /* Shutting Down PCM */
     shutdown = 1;
+    for(auto wm: workers_metadata) {
+        pthread_cond_signal(&wm->p_sleep_cond);
+    }
+
     logger::___pcm->cleanup();
 
     /* Join secondary execution streams. */
@@ -297,8 +301,9 @@ void configure_DOP(double JPI_prev, double JPI_curr) {
 }
 
 void *daemon_profiler(void *arg) {  // a dedicated pthread
+printf("Daemon is running\n");
     const int fixed_interval = 2;   // some value that you find experimentally
-    sleep(1000);                    // warmup duration
+    // sleep(1);                    // warmup duration
     double JPI_prev = 0;            // JPI is Joules per Instructions Retired
     while (!shutdown) {
         double JPI_curr = logger::end();
