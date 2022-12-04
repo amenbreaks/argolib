@@ -81,7 +81,7 @@ void init(int argc, char **argv) {
     }
 
     for (int idx = 0; idx < num_xstreams; idx++) {
-        WorkerMetadata *wm = (WorkerMetadata *)malloc(sizeof(WorkerMetadata *));
+        WorkerMetadata *wm = (WorkerMetadata *)malloc(sizeof(WorkerMetadata));
         wm->steal_counter = 0;
         wm->async_counter = idx * UINT64_MAX / num_xstreams;
 
@@ -296,10 +296,10 @@ void configure_DOP(double JPI_prev, double JPI_curr) {
     }
 }
 
-void* daemon_profiler(void* arg) {           // a dedicated pthread
-    const int fixed_interval = 2;  // some value that you find experimentally
-    sleep(1000);                   // warmup duration
-    double JPI_prev = 0;           // JPI is Joules per Instructions Retired
+void *daemon_profiler(void *arg) {  // a dedicated pthread
+    const int fixed_interval = 2;   // some value that you find experimentally
+    sleep(1000);                    // warmup duration
+    double JPI_prev = 0;            // JPI is Joules per Instructions Retired
     while (!shutdown) {
         double JPI_curr = logger::end();
         logger::___before_sstate = pcm::getSystemCounterState();
