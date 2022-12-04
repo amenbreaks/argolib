@@ -81,9 +81,13 @@ void init(int argc, char **argv) {
     }
 
     for (int idx = 0; idx < num_xstreams; idx++) {
-        WorkerMetadata *wm = (WorkerMetadata *)malloc(sizeof(wm));
+        WorkerMetadata *wm = (WorkerMetadata *)malloc(sizeof(WorkerMetadata *));
         wm->steal_counter = 0;
         wm->async_counter = idx * UINT64_MAX / num_xstreams;
+
+        wm->should_sleep = false;
+        pthread_cond_init(&wm->p_sleep_cond, NULL);
+        pthread_mutex_init(&wm->p_sleep_mutex, NULL);
 
         workers_metadata.push_back(wm);
         workers_steal_pll_ptr.push_back(0);

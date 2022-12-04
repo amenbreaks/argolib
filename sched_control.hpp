@@ -1,4 +1,5 @@
 #include <math.h>
+#include <pthread.h>
 #include <stdarg.h>
 #include <stdlib.h>
 #include <time.h>
@@ -15,6 +16,10 @@ ABT_key key_thread_id;
 typedef struct {
     atomic<uint64_t> async_counter;
     atomic<uint64_t> steal_counter;
+
+    bool should_sleep;
+    pthread_cond_t p_sleep_cond;
+    pthread_mutex_t p_sleep_mutex;
 } WorkerMetadata;
 
 vector<WorkerMetadata *> workers_metadata;
@@ -180,6 +185,17 @@ static void sched_run(ABT_sched sched) {
                 break;
             }
             ABT_xstream_check_events(sched);
+        }
+
+        if (workers_metadata.size() > self_idx && workers_metadata[self_idx]->should_sleep) {
+            printf("Worker %d is sleeping\n", self_idx);
+
+            pthread_mutex_lock(&workers_metadata[self_idx]->p_sleep_mutex);
+            pthread_cond_wait(&workers_metadata[self_idx]->p_sleep_cond, &workers_metadata[self_idx]->p_sleep_mutex);
+            pthread_mutex_unlock(&workers_metadata[self_idx]->p_sleep_mutex);
+
+            workers_metadata[self_idx]->should_sleep = false;
+            printf("Worker %d is awake\n", self_idx);
         }
     }
 
