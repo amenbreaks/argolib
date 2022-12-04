@@ -276,7 +276,7 @@ void awake_argolib_num_workers(int n) {
 
 void configure_DOP(double JPI_prev, double JPI_curr) {
     static int DP_last_action = INC, wActive = num_xstreams;
-    const int wChange = 2;  // find experimentally on your system
+    const int wChange = 3;  // find experimentally on your system
     if (conf_DOP_cfft) {
         sleep_argolib_num_workers(wChange);
         DP_last_action = DEC;
